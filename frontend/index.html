@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI edited Media detector</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brandMark" aria-hidden="true">D</div>
+          <div class="brandText">
+            <div class="brandName">AI Media Detection</div>
+            <div class="brandTag">Dashboard</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a class="navItem active" href="#">
+            <span class="navIcon">●</span>
+            Dashboard
+          </a>
+          <a class="navItem" href="#" id="navUpload">
+            <span class="navIcon">▲</span>
+            Detect
+          </a>
+          <a class="navItem" href="#" id="navHistory">
+            <span class="navIcon">◆</span>
+            History
+          </a>
+          <a class="navItem" href="#" id="navSettings">
+            <span class="navIcon">⚙</span>
+            Settings
+          </a>
+        </nav>
+
+        <div class="sidebarFooter">
+          <div class="xpRow">
+            <span class="xpDot" aria-hidden="true"></span>
+            <span class="xpText">Local Demo</span>
+          </div>
+          <div class="hint">Upload a face crop (or an image) to get a score.</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="searchWrap">
+            <div class="searchIcon" aria-hidden="true">⌕</div>
+            <input class="search" placeholder="Search for a course, lesson, etc." disabled />
+          </div>
+
+          <div class="rightTop">
+            <div class="xpBadge" title="Model status">
+              <span class="xpBadgeDot" aria-hidden="true"></span>
+              <span id="statusText">Checking...</span>
+            </div>
+
+            <div class="avatar">
+              <div class="avatarImg" aria-hidden="true">R</div>
+              <div class="avatarMeta">
+                <div class="avatarName">rexeus</div>
+                <div class="avatarSub">Mac • Local</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section class="heroGrid">
+          <div class="heroCard">
+            <div class="heroTitleRow">
+              <div class="heroGreeting">Salut, User!</div>
+            </div>
+            <h1 class="heroHeadline">
+              Check your media for
+              <span class="accentText">AI edits</span>.
+            </h1>
+
+            <p class="heroSub">
+              Upload an image to analyze authenticity and get a confidence score.
+            </p>
+
+            <div class="heroModules">
+              <div class="moduleCard">
+                <div class="moduleNum">01</div>
+                <div class="moduleTitle">Upload</div>
+                <div class="moduleDesc">Choose an image file</div>
+              </div>
+              <div class="moduleCard orange">
+                <div class="moduleNum">02</div>
+                <div class="moduleTitle">Face Crop</div>
+                <div class="moduleDesc">MTCNN + resize to 128x128</div>
+              </div>
+              <div class="moduleCard">
+                <div class="moduleNum">03</div>
+                <div class="moduleTitle">Score</div>
+                <div class="moduleDesc">Pristine vs Deepfake</div>
+              </div>
+            </div>
+
+            <div class="uploadPanel">
+              <div class="uploadHeader">
+                <div class="uploadTitle">Detect a face</div>
+                <div class="uploadBadge" id="uploadHint">Waiting for upload</div>
+              </div>
+
+              <div class="uploadRow">
+                <label class="uploadBtn" for="fileInput">Choose file</label>
+                <input id="fileInput" type="file" accept="image/*" hidden />
+                <button class="detectBtn" id="predictBtn" disabled>Detect</button>
+              </div>
+
+              <div class="previewRow">
+                <div class="previewBox">
+                  <img id="previewImg" alt="Preview" />
+                  <div class="previewPlaceholder" id="previewPlaceholder">
+                    No image selected
+                  </div>
+                </div>
+                <div class="resultBox">
+                  <div class="resultTop">
+                    <div class="resultLabel">Result</div>
+                    <div class="resultStatus" id="resultStatus">—</div>
+                  </div>
+                  <div class="scoreRow">
+                    <div class="scoreBlock">
+                      <div class="scoreName">Pristine</div>
+                      <div class="scoreValue" id="pristineScore">0.00</div>
+                    </div>
+                    <div class="scoreBlock">
+                      <div class="scoreName">Deepfake</div>
+                      <div class="scoreValue" id="deepfakeScore">0.00</div>
+                    </div>
+                  </div>
+                  <div class="metaLine" id="metaLine"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rightCard">
+            <div class="rightHeader">
+              <div>
+                <div class="rightTitle">Scheduled</div>
+                <div class="rightSub">Latest Predictions</div>
+              </div>
+              <div class="rightLink" id="clearHistory">Clear</div>
+            </div>
+
+            <div class="historyList" id="historyList">
+              <div class="historyEmpty">No predictions yet.</div>
+            </div>
+
+            <div class="progressSection">
+              <div class="progressRow">
+                <div class="progressTitle">Model ready</div>
+                <div class="progressPct" id="readyPct">0%</div>
+              </div>
+              <div class="progressBar">
+                <div class="progressFill" id="progressFill"></div>
+              </div>
+              <div class="progressHint">This is a local demo UI; training is separate.</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
+
