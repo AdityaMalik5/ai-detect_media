@@ -1,16 +1,29 @@
+import os
 import cv2
-import sys, os.path
 import json
-import http.client, urllib.request, urllib.parse, urllib.error, base64
+import http.client, urllib.parse
 
-base_path = '.\\train_sample_videos\\'
-AZURE_COMPUTER_VISION_NAME = '----REPLACE-WITH-YOUR-SERVICE-NAME----'  # e.g. xxxxxxxxxx.cognitiveservices.azure.com
-AZURE_COMPUTER_VISION_API_KEY = '----REPLACE-WITH-YOUR-KEY----'
+from utils import get_filename_only
 
-def get_filename_only(file_path):
-    file_basename = os.path.basename(file_path)
-    filename_only = file_basename.split('.')[0]
-    return filename_only
+base_path = os.path.join('.', 'train_sample_videos')
+
+# ── Credentials are loaded from environment variables. Never hardcode them. ──
+#
+# Export these in your shell (or put them in a local `.env` file — which is
+# already gitignored — and source it) BEFORE running this script:
+#
+#   export AZURE_COMPUTER_VISION_NAME="xxxxxxxxxx.cognitiveservices.azure.com"
+#   export AZURE_COMPUTER_VISION_API_KEY="your-real-key"
+#
+AZURE_COMPUTER_VISION_NAME = os.environ.get("AZURE_COMPUTER_VISION_NAME", "")
+AZURE_COMPUTER_VISION_API_KEY = os.environ.get("AZURE_COMPUTER_VISION_API_KEY", "")
+
+if not AZURE_COMPUTER_VISION_NAME or not AZURE_COMPUTER_VISION_API_KEY:
+    raise SystemExit(
+        "Missing Azure credentials. Set AZURE_COMPUTER_VISION_NAME and "
+        "AZURE_COMPUTER_VISION_API_KEY as environment variables before running "
+        "this script. Do not paste your key into source code."
+    )
 
 with open(os.path.join(base_path, 'metadata.json')) as metadata_json:
     metadata = json.load(metadata_json)

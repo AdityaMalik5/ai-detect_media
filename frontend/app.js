@@ -5,7 +5,7 @@ const SETTINGS_KEY = "dfSettings";
 
 let selectedFile = null;
 let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{"theme":"dark","animations":true,"compact":false}');
+let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{"theme":"light","animations":true,"compact":false}');
 
 // Chart.js instances (so we can destroy/replace them)
 let probChart = null;
