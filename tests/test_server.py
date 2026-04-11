@@ -194,6 +194,71 @@ class TestPredictEndpoint:
         assert body["deepfake_prob"] > body["pristine_prob"]
 
 
+class TestPredictVideoEndpoint:
+    """Tests for video upload handling. _process_video is mocked because it
+    needs a real video file on disk; we only verify the routing/response shape."""
+
+    def test_video_routes_through_process_video(self, client):
+        import app_server
+
+        fake_result = {
+            "pristine_prob": 0.92,
+            "deepfake_prob": 0.08,
+            "frame_scores": [0.91, 0.93, 0.92],
+            "frame_timestamps": [0.0, 0.5, 1.0],
+            "frame_count": 3,
+            "duration_sec": 1.5,
+            "fps": 30.0,
+        }
+        with patch.object(app_server, "_process_video", return_value=fake_result):
+            data = {"file": (io.BytesIO(b"fake-mp4-data"), "clip.mp4")}
+            resp = client.post("/api/predict", data=data, content_type="multipart/form-data")
+            assert resp.status_code == 200
+            body = resp.get_json()
+            assert body["ok"] is True
+            assert body["is_video"] is True
+            assert body["label"] == "Pristine"
+            assert body["frame_count"] == 3
+            assert body["frame_scores"] == [0.91, 0.93, 0.92]
+            assert body["frame_timestamps"] == [0.0, 0.5, 1.0]
+            assert body["meta"]["duration_sec"] == 1.5
+            assert body["meta"]["fps"] == 30.0
+
+    def test_video_deepfake_label(self, client):
+        import app_server
+
+        fake_result = {
+            "pristine_prob": 0.12,
+            "deepfake_prob": 0.88,
+            "frame_scores": [0.10, 0.15, 0.11],
+            "frame_timestamps": [0.0, 0.5, 1.0],
+            "frame_count": 3,
+            "duration_sec": 1.5,
+            "fps": 30.0,
+        }
+        with patch.object(app_server, "_process_video", return_value=fake_result):
+            data = {"file": (io.BytesIO(b"fake-mp4-data"), "clip.mp4")}
+            resp = client.post("/api/predict", data=data, content_type="multipart/form-data")
+            body = resp.get_json()
+            assert body["label"] == "Deepfake"
+            assert body["is_video"] is True
+
+    def test_video_invalid_extension_rejected(self, client):
+        data = {"file": (io.BytesIO(b"fake"), "clip.xyz")}
+        resp = client.post("/api/predict", data=data, content_type="multipart/form-data")
+        assert resp.status_code == 400
+        assert "not allowed" in resp.get_json()["error"]
+
+    def test_video_decode_failure_returns_400(self, client):
+        import app_server
+        with patch.object(app_server, "_process_video", side_effect=ValueError("Could not open video file")):
+            data = {"file": (io.BytesIO(b"garbage"), "clip.mp4")}
+            resp = client.post("/api/predict", data=data, content_type="multipart/form-data")
+            assert resp.status_code == 400
+            assert resp.get_json()["ok"] is False
+            assert "video" in resp.get_json()["error"].lower()
+
+
 class TestIndexPage:
     def test_index_serves_html(self, client):
         resp = client.get("/")
