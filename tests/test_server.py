@@ -29,28 +29,40 @@ def _make_jpeg_bytes(width=64, height=64) -> bytes:
 # ── Preprocessing tests (no TF needed) ──────────────────────────────────────
 
 class TestPreprocessImage:
-    """Test the _preprocess_image helper directly."""
+    """Test the _preprocess_image helper directly.
+
+    _preprocess_image returns (tensor, used_face_crop). For random noise images
+    MTCNN won't find a face so used_face_crop will be False — that's fine, we
+    only validate the tensor shape and dtype here.
+    """
 
     def test_valid_png_returns_correct_shape(self):
         from app_server import _preprocess_image
-        tensor = _preprocess_image(_make_png_bytes(200, 150))
+        tensor, _ = _preprocess_image(_make_png_bytes(200, 150))
         assert tensor.shape == (1, 128, 128, 3)
 
     def test_valid_jpeg_returns_correct_shape(self):
         from app_server import _preprocess_image
-        tensor = _preprocess_image(_make_jpeg_bytes(300, 300))
+        tensor, _ = _preprocess_image(_make_jpeg_bytes(300, 300))
         assert tensor.shape == (1, 128, 128, 3)
 
     def test_output_normalised_to_0_1(self):
         from app_server import _preprocess_image
-        tensor = _preprocess_image(_make_png_bytes())
+        tensor, _ = _preprocess_image(_make_png_bytes())
         assert tensor.min() >= 0.0
         assert tensor.max() <= 1.0
 
     def test_output_dtype_float32(self):
         from app_server import _preprocess_image
-        tensor = _preprocess_image(_make_png_bytes())
+        tensor, _ = _preprocess_image(_make_png_bytes())
         assert tensor.dtype == np.float32
+
+    def test_returns_tuple_with_face_flag(self):
+        from app_server import _preprocess_image
+        result = _preprocess_image(_make_png_bytes())
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[1], bool)
 
     def test_corrupt_bytes_raises(self):
         from app_server import _preprocess_image
@@ -64,13 +76,38 @@ class TestPreprocessImage:
 
     def test_small_image_upscaled(self):
         from app_server import _preprocess_image
-        tensor = _preprocess_image(_make_png_bytes(10, 10))
+        tensor, _ = _preprocess_image(_make_png_bytes(10, 10))
         assert tensor.shape == (1, 128, 128, 3)
 
     def test_large_image_downscaled(self):
         from app_server import _preprocess_image
-        tensor = _preprocess_image(_make_png_bytes(1024, 768))
+        tensor, _ = _preprocess_image(_make_png_bytes(1024, 768))
         assert tensor.shape == (1, 128, 128, 3)
+
+
+class TestCropFace:
+    """Test the _crop_face helper. Random noise won't contain a face, so we
+    validate the no-face fallback behavior."""
+
+    def test_no_face_returns_none(self):
+        from app_server import _crop_face
+        # Random noise — MTCNN should find no face
+        frame = np.random.randint(0, 255, (200, 200, 3), dtype=np.uint8)
+        crop, conf = _crop_face(frame)
+        assert crop is None
+        assert conf == 0.0
+
+    def test_empty_frame_returns_none(self):
+        from app_server import _crop_face
+        crop, conf = _crop_face(np.array([], dtype=np.uint8))
+        assert crop is None
+        assert conf == 0.0
+
+    def test_none_frame_returns_none(self):
+        from app_server import _crop_face
+        crop, conf = _crop_face(None)
+        assert crop is None
+        assert conf == 0.0
 
 
 # ── Flask endpoint tests (model mocked) ─────────────────────────────────────

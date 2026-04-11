@@ -51,15 +51,72 @@ except Exception as exc:
     _init_error = f"Failed to load model: {exc}"
 
 
-def _preprocess_image(file_bytes: bytes) -> np.ndarray:
-    """Decode uploaded image bytes, resize to INPUT_SIZE x INPUT_SIZE, normalise to [0,1]."""
+# ── Face detector (lazy loaded; falls back gracefully if MTCNN unavailable) ──
+_face_detector = None
+_face_detector_error: Optional[str] = None
+
+try:
+    from mtcnn import MTCNN
+
+    _face_detector = MTCNN()
+except Exception as exc:
+    _face_detector_error = f"MTCNN unavailable, predictions will use full frames: {exc}"
+
+
+def _crop_face(bgr_frame: np.ndarray, margin: float = 0.3, min_confidence: float = 0.9):
+    """Detect the most confident face in a BGR frame and return a cropped BGR region.
+
+    Returns (cropped_face, confidence) on success, or (None, 0.0) if no face was found
+    or the detector is unavailable. The crop includes a configurable margin around
+    the bounding box.
+    """
+    if _face_detector is None or bgr_frame is None or bgr_frame.size == 0:
+        return None, 0.0
+
+    # MTCNN expects RGB
+    rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+    try:
+        results = _face_detector.detect_faces(rgb)
+    except Exception:
+        return None, 0.0
+
+    if not results:
+        return None, 0.0
+
+    best = max(results, key=lambda r: r.get("confidence", 0.0))
+    if best.get("confidence", 0.0) < min_confidence:
+        return None, 0.0
+
+    x, y, w, h = best["box"]
+    mx, my = int(w * margin), int(h * margin)
+    x1 = max(0, x - mx)
+    y1 = max(0, y - my)
+    x2 = min(rgb.shape[1], x + w + mx)
+    y2 = min(rgb.shape[0], y + h + my)
+
+    if x2 <= x1 or y2 <= y1:
+        return None, 0.0
+
+    crop = bgr_frame[y1:y2, x1:x2]
+    if crop.shape[0] < 20 or crop.shape[1] < 20:
+        return None, 0.0
+
+    return crop, float(best["confidence"])
+
+
+def _preprocess_image(file_bytes: bytes):
+    """Decode uploaded image bytes, crop the face (if any), and return (tensor, used_face_crop)."""
     if not file_bytes:
         raise ValueError("Could not decode image — file is empty")
     arr = np.frombuffer(file_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Could not decode image — file may be corrupt or not an image")
-    return _frame_to_tensor(img)
+
+    face_crop, _conf = _crop_face(img)
+    if face_crop is not None:
+        return _frame_to_tensor(face_crop), True
+    return _frame_to_tensor(img), False
 
 
 def _frame_to_tensor(bgr_frame: np.ndarray) -> np.ndarray:
@@ -101,15 +158,22 @@ def _process_video(file_bytes: bytes):
         else:
             indices = np.linspace(0, total_frames - 1, n_samples, dtype=int).tolist()
 
-        frame_scores = []  # pristine probability per frame
+        frame_scores = []  # pristine probability per sampled frame
         frame_timestamps = []
+        frames_with_face = 0
 
         for idx in indices:
             cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
             ret, frame = cap.read()
             if not ret or frame is None:
                 continue
-            tensor = _frame_to_tensor(frame)
+            face_crop, _conf = _crop_face(frame)
+            if face_crop is not None:
+                tensor = _frame_to_tensor(face_crop)
+                frames_with_face += 1
+            else:
+                # Skip frames with no detectable face — they would just confuse the model
+                continue
             score = _predict_tensor(tensor)
             frame_scores.append(score)
             frame_timestamps.append(round(idx / fps, 3))
@@ -117,7 +181,9 @@ def _process_video(file_bytes: bytes):
         cap.release()
 
         if not frame_scores:
-            raise ValueError("No frames could be decoded from the video")
+            raise ValueError(
+                "No frames with a detectable face were found in the video"
+            )
 
         avg_pristine = float(np.mean(frame_scores))
         return {
@@ -126,6 +192,8 @@ def _process_video(file_bytes: bytes):
             "frame_scores": [round(s, 6) for s in frame_scores],
             "frame_timestamps": frame_timestamps,
             "frame_count": len(frame_scores),
+            "frames_sampled": len(indices),
+            "frames_with_face": frames_with_face,
             "duration_sec": round(total_frames / fps, 2),
             "fps": round(fps, 2),
         }
@@ -196,11 +264,13 @@ def api_predict():
                         "input_size": INPUT_SIZE,
                         "duration_sec": result["duration_sec"],
                         "fps": result["fps"],
+                        "frames_sampled": result.get("frames_sampled"),
+                        "frames_with_face": result.get("frames_with_face"),
                     },
                 }
             )
         else:
-            tensor = _preprocess_image(file_bytes)
+            tensor, used_face_crop = _preprocess_image(file_bytes)
             pristine_prob = _predict_tensor(tensor)
             deepfake_prob = 1.0 - pristine_prob
             label = "Pristine" if pristine_prob >= 0.5 else "Deepfake"
@@ -212,7 +282,10 @@ def api_predict():
                     "pristine_prob": round(pristine_prob, 6),
                     "deepfake_prob": round(deepfake_prob, 6),
                     "is_video": False,
-                    "meta": {"input_size": INPUT_SIZE},
+                    "meta": {
+                        "input_size": INPUT_SIZE,
+                        "face_detected": used_face_crop,
+                    },
                 }
             )
     except ValueError as exc:
