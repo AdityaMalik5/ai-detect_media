@@ -10,7 +10,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/AdityaMalik5/ai-detect_media?style=social)](https://github.com/AdityaMalik5/ai-detect_media/network/members)
 
 <p align="center">
-  <img src="img/dfdetect-home.png" alt="AI Media Detection dashboard homepage" width="70%" />
+  <img src="img/app-home.png" alt="AI Media Detection dashboard homepage" width="70%" />
 </p>
 
 **Open-source deepfake & AI-edited media detection — train your own model with TensorFlow, Keras & EfficientNet, and analyze results through a clean local dashboard**
